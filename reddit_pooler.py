@@ -45,7 +45,10 @@ def pull_dictupdate(reddit_instance:praw.Reddit, last_post_dict_record:Dict, sub
     if subreddit_name.lower() in last_post_dict_record:
         last_pull = last_post_dict_record[subreddit_name.lower()]
         while True:
-            post = next(puller)
+            try:
+                post = next(puller)
+            except StopIteration:
+                break
             if post.id==last_pull:
                 break
             posts.append(post)
@@ -55,8 +58,12 @@ def pull_dictupdate(reddit_instance:praw.Reddit, last_post_dict_record:Dict, sub
     else:
         i = 0
         while i<10:
-            posts.append(next(puller))
-            i+=1
+            try:
+                posts.append(next(puller))
+                i+=1
+            except StopIteration:
+                break
+
     last_post_dict_record[subreddit_name.lower()] = posts[0].id
     return filter_submissions(posts)
 
