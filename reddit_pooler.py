@@ -79,7 +79,7 @@ def pull_multiple_subreddits(reddit_instance:praw.Reddit, last_post_dict:Dict, s
     generators = []
     for name in subreddit_list:
         generators.append(pull_dictupdate(reddit_instance, last_post_dict, name))
-        print(name)
+        #print(name)
         sleep(0.1)
 
     return list(roundrobin(*generators))
@@ -94,6 +94,37 @@ def save_dict(d:Dict, filename):
     with open(filename, 'w') as f:
         json.dump(d, f)
 
+class RedditPooler:
+    def __init__(self, updater, chat_id, subreddits):
+        super(RedditPooler, self).__init__()
+        self.updater = updater
+        self.chat_id = chat_id
+        self.subreddits = subreddits
+        self.is_stopped = False
+
+    def run(self):
+        if os.path.exists('last-upload.reddit'):
+            last_post_dict = load_dict('last-upload.reddit')
+        else:
+            last_post_dict = {}
+
+        reddit = make_reddit('reddit.txt')
+
+        while not self.is_stopped:
+            res = pull_multiple_subreddits(reddit, last_post_dict, self.subreddits)
+
+            for record in res:
+
+                photo_url = record['img_url']
+                self.updater.bot.send_photo(
+                    chat_id=self.chat_id, photo=photo_url,
+                    caption=f"{record['title']}\n{record['url']}")
+            sleep(5)
+
+        save_dict(last_post_dict, 'last-upload.reddit')
+
+    def stop(self):
+        self.is_stopped = True
 
 if __name__ == '__main__':
     if os.path.exists('last-upload.reddit'):
@@ -102,7 +133,7 @@ if __name__ == '__main__':
         last_post_dict = {}
 
     subreddits = [
-        'Genshin_Impact', 'GenshinImpactHentai'
+        'Genshin_Impact'
     ]
 
     reddit = make_reddit('reddit.txt')

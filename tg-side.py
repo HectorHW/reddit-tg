@@ -114,6 +114,15 @@ if __name__ == '__main__':
         else:
             updater.bot.send_message(chat_id=CHAT_ID, text=s)
 
+    from reddit_pooler import RedditPooler
+
+    SUBREDDITS = [
+        'Genshin_Impact', 'megane', 'wholesomeanimemes'
+    ]
+
+    pooler = RedditPooler(updater, CHAT_ID, SUBREDDITS)
+    from threading import Thread
+    thread = Thread(target=pooler.run)
 
     help_msg = """
     
@@ -125,7 +134,16 @@ if __name__ == '__main__':
     
     """
     print(help_msg)
+
+    thread_is_running = False
+
     while True:
+
+        if CHAT_ID is not None and not thread_is_running:
+            thread_is_running = True
+            pooler.chat_id = CHAT_ID
+            thread.start()
+
         s = input()
 
         if s=="stop":
@@ -137,6 +155,11 @@ if __name__ == '__main__':
             command_verify()
         else:
             print(help_msg)
+
+    #TODO fix stopping
+
+    pooler.stop()
+    thread.join()
 
     updater.stop()
 
