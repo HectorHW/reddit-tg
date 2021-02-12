@@ -114,14 +114,94 @@ if __name__ == '__main__':
         else:
             updater.bot.send_message(chat_id=CHAT_ID, text=s)
 
+
+    def load_subreddits(filename):
+        with open(filename) as f:
+            return [s.strip() for s in f.readlines()]
+
+    def save_subreddits(filename, l):
+        with open(filename, 'w') as f:
+            f.write('\n'.join(l))
+
     from reddit_pooler import RedditPooler
 
-    SUBREDDITS = [
-        'Genshin_Impact', 'megane', 'wholesomeanimemes'
-    ]
+    if os.path.exists('subreddits.txt'):
+        SUBREDDITS = load_subreddits('subreddits.txt')
+        print('loaded subreddits from file')
+    else:
 
-    pooler = RedditPooler(updater, CHAT_ID, SUBREDDITS)
-    from threading import Thread
+        SUBREDDITS = [
+            'Genshin_Impact', 'megane', 'wholesomeanimemes'
+        ]
+        print(f'no subreddits.txt found, using standart list {SUBREDDITS}')
+    from threading import Thread, Lock
+    subreddits_mutex = Lock()
+    pooler = RedditPooler(updater, CHAT_ID, SUBREDDITS, subreddits_mutex)
+
+    def list_callback(update, context:CallbackContext):
+        subreddits_mutex.acquire()
+        context.bot.send_message(chat_id=update.effective_chat.id, text=str(pooler.subreddits))
+        subreddits_mutex.release()
+
+    dispatcher.add_handler(CommandHandler('list', list_callback))
+
+    def add_callback(update, context:CallbackContext):
+
+        subreddit = 'megane'
+        if update.channel_post is not None: # post in channel
+            if update.channel_post.text is not None:
+                print(f"{update.channel_post.sender_chat.title}: {update.channel_post.text}")
+                subreddit = update.channel_post.text.split(" ")[-1]
+
+        elif update.message is not None: # message
+            print(f"{update.message.from_user.username}: {update.message.text}")
+            subreddit = update.message.text.split(" ")[-1]
+
+
+        subreddits_mutex.acquire()
+        pooler.subreddits = list( set(pooler.subreddits).union([subreddit]))
+        subreddits_mutex.release()
+        context.bot.send_message(chat_id=update.effective_chat.id, text=f'added {subreddit}')
+
+    dispatcher.add_handler(CommandHandler('add', add_callback))
+
+    def remove_callback(update, context:CallbackContext):
+
+        subreddit = 'megane'
+        if update.channel_post is not None: # post in channel
+            if update.channel_post.text is not None:
+                print(f"{update.channel_post.sender_chat.title}: {update.channel_post.text}")
+                subreddit = update.channel_post.text.split(" ")[-1]
+
+        elif update.message is not None: # message
+            print(f"{update.message.from_user.username}: {update.message.text}")
+            subreddit = update.message.text.split(" ")[-1]
+
+
+        subreddits_mutex.acquire()
+        pooler.subreddits = list( set(pooler.subreddits).difference([subreddit]))
+        subreddits_mutex.release()
+        context.bot.send_message(chat_id=update.effective_chat.id, text=f'removed {subreddit}')
+
+    dispatcher.add_handler(CommandHandler('remove', remove_callback))
+
+    def save_callback(update, context:CallbackContext):
+        subreddits_mutex.acquire()
+        save_subreddits('subreddits.txt', pooler.subreddits)
+        subreddits_mutex.release()
+        context.bot.send_message(chat_id=update.effective_chat.id, text=f'saved to file')
+
+    dispatcher.add_handler(CommandHandler('save', save_callback))
+
+    def load_callback(update, context:CallbackContext):
+        subreddits_mutex.acquire()
+        pooler.subreddits = load_subreddits('subreddits.txt')
+        subreddits_mutex.release()
+        context.bot.send_message(chat_id=update.effective_chat.id, text=f'loaded from file')
+
+    dispatcher.add_handler(CommandHandler('save', save_callback))
+
+
     thread = Thread(target=pooler.run)
 
     help_msg = """

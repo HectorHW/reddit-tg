@@ -95,12 +95,13 @@ def save_dict(d:Dict, filename):
         json.dump(d, f)
 
 class RedditPooler:
-    def __init__(self, updater, chat_id, subreddits):
+    def __init__(self, updater, chat_id, subreddits, subreddits_mutex):
         super(RedditPooler, self).__init__()
         self.updater = updater
         self.chat_id = chat_id
         self.subreddits = subreddits
         self.is_stopped = False
+        self.subreddits_mutext = subreddits_mutex
 
     def run(self):
         if os.path.exists('last-upload.reddit'):
@@ -111,8 +112,9 @@ class RedditPooler:
         reddit = make_reddit('reddit.txt')
 
         while not self.is_stopped:
+            self.subreddits_mutext.acquire()
             res = pull_multiple_subreddits(reddit, last_post_dict, self.subreddits)
-
+            self.subreddits_mutext.release()
             for record in res:
 
                 photo_url = record['img_url']
