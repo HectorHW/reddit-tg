@@ -139,6 +139,8 @@ if __name__ == '__main__':
     pooler = RedditPooler(updater, CHAT_ID, SUBREDDITS, subreddits_mutex)
 
     def list_callback(update, context:CallbackContext):
+        if CHAT_ID is None or CHAT_ID!=update.effective_chat.id:
+            return
         subreddits_mutex.acquire()
         context.bot.send_message(chat_id=update.effective_chat.id, text=str(pooler.subreddits))
         subreddits_mutex.release()
@@ -146,7 +148,8 @@ if __name__ == '__main__':
     dispatcher.add_handler(CommandHandler('list', list_callback))
 
     def add_callback(update, context:CallbackContext):
-
+        if CHAT_ID is None or CHAT_ID!=update.effective_chat.id:
+            return
         subreddit = 'megane'
         if update.channel_post is not None: # post in channel
             if update.channel_post.text is not None:
@@ -166,6 +169,8 @@ if __name__ == '__main__':
     dispatcher.add_handler(CommandHandler('add', add_callback))
 
     def remove_callback(update, context:CallbackContext):
+        if CHAT_ID is None or CHAT_ID!=update.effective_chat.id:
+            return
 
         subreddit = 'megane'
         if update.channel_post is not None: # post in channel
@@ -186,6 +191,9 @@ if __name__ == '__main__':
     dispatcher.add_handler(CommandHandler('remove', remove_callback))
 
     def save_callback(update, context:CallbackContext):
+        if CHAT_ID is None or CHAT_ID!=update.effective_chat.id:
+            return
+
         subreddits_mutex.acquire()
         save_subreddits('subreddits.txt', pooler.subreddits)
         subreddits_mutex.release()
@@ -194,6 +202,9 @@ if __name__ == '__main__':
     dispatcher.add_handler(CommandHandler('save', save_callback))
 
     def load_callback(update, context:CallbackContext):
+        if CHAT_ID is None or CHAT_ID!=update.effective_chat.id:
+            return
+
         subreddits_mutex.acquire()
         pooler.subreddits = load_subreddits('subreddits.txt')
         subreddits_mutex.release()

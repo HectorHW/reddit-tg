@@ -31,7 +31,7 @@ def pull_dictupdate(reddit_instance:praw.Reddit, last_post_dict_record:Dict, sub
                 res.append(
 
                     {
-                        'img_url': r_post.preview['images'][-1]['resolutions'][-1]['url'],
+                        'img_url': r_post.preview['images'][-1]['source']['url'],
                         'title': r_post.title,
                         'url':r_post.shortlink
                     }
@@ -44,14 +44,16 @@ def pull_dictupdate(reddit_instance:praw.Reddit, last_post_dict_record:Dict, sub
 
     if subreddit_name.lower() in last_post_dict_record:
         last_pull = last_post_dict_record[subreddit_name.lower()]
+        i = 0 #limit to 10 msgs
         while True:
             try:
                 post = next(puller)
             except StopIteration:
                 break
-            if post.id==last_pull:
+            if post.id==last_pull or i>10:
                 break
             posts.append(post)
+            i+=1
         if not posts: #no new posts
             return []
 
@@ -119,15 +121,35 @@ class RedditPooler:
         reddit = make_reddit('reddit.txt')
 
         while not self.is_stopped:
-            self.subreddits_mutext.acquire()
-            res = pull_multiple_subreddits(reddit, last_post_dict, self.subreddits)
-            self.subreddits_mutext.release()
+            try:
+
+                self.subreddits_mutext.acquire()
+                res = pull_multiple_subreddits(reddit, last_post_dict, self.subreddits)
+
+            except praw.errors.HTTPException as e:
+                print(f"encountered HTTP error: {e.message}")
+                self.updater.bot.send_message(chat_id=self.chat_id,
+                                              text = f"encountered HTTP error: {e.message}")
+                sleep(1)
+                continue
+            finally:
+                self.subreddits_mutext.release()
+
             for record in res:
 
                 photo_url = record['img_url']
-                self.updater.bot.send_photo(
-                    chat_id=self.chat_id, photo=photo_url,
-                    caption=f"{record['title']}\n{record['url']}")
+                import telegram
+                try: #TODO fix crashing when sending gifs
+                    # example: https://external-preview.redd.it/IHWCiM6lozyhPd4L2M_2K3YkDYrc0pfqFHzoteGIAXE.gif?width=640&crop=smart&format=png8&s=b25717d8d4ebc804dc118378ab78125f87178b1c
+                    self.updater.bot.send_photo(
+                        chat_id=self.chat_id, photo=photo_url,
+                        caption=f"{record['title']}\n{record['url']}")
+                    sleep(0.06) # to prevent flood - limit is ~30 msgs/s
+                except telegram.error.BadRequest as e:
+                    self.updater.bot.send_message(chat_id=self.chat_id,
+                                                  text=f"{e.message} {photo_url}")
+                    print(e.message, photo_url)
+
             sleep(5)
 
         save_dict(last_post_dict, 'last-upload.reddit')
