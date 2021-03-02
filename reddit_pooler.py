@@ -1,5 +1,4 @@
 import os
-import threading
 from time import sleep
 import praw
 from typing import List, Dict
@@ -86,10 +85,17 @@ def roundrobin(*iterables):
 def pull_multiple_subreddits(reddit_instance:praw.Reddit, last_post_dict:Dict, subreddit_list:List) -> List[Dict]:
 
     generators = []
+    import prawcore
     for name in subreddit_list:
-        generators.append(pull_dictupdate(reddit_instance, last_post_dict, name))
-        #print(name)
-        sleep(0.1)
+        try:
+            generators.append(pull_dictupdate(reddit_instance, last_post_dict, name))
+            sleep(0.1)
+
+        except (prawcore.exceptions.RequestException, prawcore.exceptions.ServerError) as e:
+            print(f"encountered error {type(e)} with message {e.message}")
+            sleep(0.5)
+            continue # ignore request errors (in that case post_dict is not updated)
+
 
     return list(roundrobin(*generators))
 
@@ -121,19 +127,10 @@ class RedditPooler:
         reddit = make_reddit('reddit.txt')
 
         while not self.is_stopped:
-            try:
 
-                self.subreddits_mutext.acquire()
-                res = pull_multiple_subreddits(reddit, last_post_dict, self.subreddits)
-
-            except praw.errors.HTTPException as e:
-                print(f"encountered HTTP error: {e.message}")
-                self.updater.bot.send_message(chat_id=self.chat_id,
-                                              text = f"encountered HTTP error: {e.message}")
-                sleep(1)
-                continue
-            finally:
-                self.subreddits_mutext.release()
+            self.subreddits_mutext.acquire()
+            res = pull_multiple_subreddits(reddit, last_post_dict, self.subreddits)
+            self.subreddits_mutext.release()
 
             for record in res:
 
